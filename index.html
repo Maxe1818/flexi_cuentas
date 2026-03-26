@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#121212">
+    <title>Flexi Cuentas</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="assets/css/styles.css">
+    <link rel="icon" type="image/png" href="assets/img/logo_flexi_cuentas.png">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="theme-dark mode-app">
+    <!-- SVG Magic Cutout Engine (Hardware Accelerated Real-time Alpha) -->
+    <svg style="position: absolute; width: 0; height: 0; pointer-events: none;">
+        <filter id="magic-cutout" color-interpolation-filters="sRGB">
+            <feColorMatrix type="matrix" values="
+                1.1 0   0   0   0
+                0   1.1 0   0   0
+                0   0   1.1 0   0
+                3.5 3.5 3.5 0   -0.8
+            " />
+            <feComponentTransfer>
+                <!-- Compress edge alpha to make it sharper -->
+                <feFuncA type="linear" slope="1.5" intercept="-0.1" />
+            </feComponentTransfer>
+        </filter>
+    </svg>
+
+    <!-- Overlay for Splash Screen -->
+    <div id="splash-screen" class="splash-active">
+        <img src="assets/img/logo_flexi_cuentas.png" alt="Flexi Cuentas Logo" class="splash-logo">
+        <h1 class="splash-title">Flexi Cuentas</h1>
+        <p class="splash-subtitle">Tu ritmo, tu dinero</p>
+    </div>
+
+    <!-- Lock Screen -->
+    <div id="lock-screen" class="lock-overlay" style="display:none;">
+        <div class="lock-content">
+            <div class="lock-icon">🔒</div>
+            <h2 id="lock-title">Ingresa tu PIN</h2>
+            <div class="lock-dots" id="lock-dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+            <div class="keypad">
+                <button class="keypad-btn" onclick="pressPin('1')">1</button>
+                <button class="keypad-btn" onclick="pressPin('2')">2</button>
+                <button class="keypad-btn" onclick="pressPin('3')">3</button>
+                <button class="keypad-btn" onclick="pressPin('4')">4</button>
+                <button class="keypad-btn" onclick="pressPin('5')">5</button>
+                <button class="keypad-btn" onclick="pressPin('6')">6</button>
+                <button class="keypad-btn" onclick="pressPin('7')">7</button>
+                <button class="keypad-btn" onclick="pressPin('8')">8</button>
+                <button class="keypad-btn" onclick="pressPin('9')">9</button>
+                <button class="keypad-btn" style="visibility:hidden;"></button>
+                <button class="keypad-btn" onclick="pressPin('0')">0</button>
+                <button class="keypad-btn del-btn" onclick="pressPin('back')">⌫</button>
+            </div>
+            <button id="btn-cancel-pin" class="btn-action btn-expense mt-15" style="display:none; width: 100%;"
+                onclick="cancelPinSetup()">Cancelar</button>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <main id="app-container">
+        <!-- Dashboard View (Modular) -->
+        <section id="view-dashboard" class="app-view active-view">
+            <!-- Header -->
+            <header class="app-header">
+                <div class="header-content">
+                    <img src="assets/img/logo_flexi_cuentas.png" alt="Logo" class="mini-logo">
+                    <h2>Flexi Cuentas</h2>
+                    <button class="icon-btn"
+                        onclick="document.getElementById('settings-modal').classList.add('active')">⚙️</button>
+                </div>
+            </header>
+
+            <!-- Modular Grid container -->
+            <div id="dashboard-grid" class="flex-scroll-container pb-navbar">
+
+                <!-- Account Selection Widget -->
+                <div class="widget glass-effect" id="widget-accounts"
+                    style="padding: 15px; display: flex; justify-content: space-between; align-items: center; border-radius: 20px; z-index: 10;">
+                    <div style="display: flex; align-items: center; gap: 10px; flex: 1; overflow: hidden;">
+                        <span style="font-size: 20px;">🏦</span>
+                        <select id="account-selector"
+                            style="background: transparent; color: var(--text-primary); border: none; font-size: 16px; font-weight: 800; outline: none; appearance: none; -webkit-appearance: none; max-width: 150px; text-overflow: ellipsis; white-space: nowrap;">
+                        </select>
+                        <span style="font-size: 10px; color: var(--text-secondary); margin-left: -5px;">▼</span>
+                    </div>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="icon-btn" id="btn-edit-account"
+                            style="width: 35px; height: 35px; font-size: 14px;">✏️</button>
+                        <button class="icon-btn" id="btn-add-account"
+                            style="width: 35px; height: 35px; font-size: 18px;">+</button>
+                    </div>
+                </div>
+
+                <!-- Premium Hero Widget -->
+                <div class="dashboard-hero widget glass-effect" id="widget-hero" draggable="true">
+                    <div class="hero-balance-info premium-balance">
+                        <h3>Balance Total</h3>
+                        <div class="amount-display">
+                            <span class="currency-symbol">₡</span>
+                            <span id="total-balance">0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Action Widget -->
+                <div class="widget action-widget glass-effect" id="widget-actions" draggable="true">
+                    <button id="btn-add-income" class="btn-action btn-income">+ Ingreso</button>
+                    <button id="btn-add-expense" class="btn-action btn-expense">- Gasto</button>
+                </div>
+
+                <!-- Chart Widget Premium -->
+                <div class="widget glass-effect" id="widget-chart" draggable="true">
+                    <h3
+                        style="margin-bottom: 20px; font-size: 16px; display:flex; justify-content:space-between; align-items:center;">
+                        Ingresos vs Gastos
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button class="icon-btn" onclick="toggleChartType()"
+                                style="width:30px; height:30px; font-size:14px; background:rgba(255,255,255,0.08); box-shadow:none;"
+                                title="Cambiar Gráfica">🔄</button>
+                            <span style="font-size:14px; color:var(--text-secondary);">📊</span>
+                        </div>
+                    </h3>
+                    <div
+                        style="position: relative; height: 200px; width: 100%; display: flex; justify-content: center; align-items: center;">
+                        <canvas id="expenseChart"></canvas>
+                    </div>
+                </div>
+
+                <!-- Feed Widget -->
+                <div class="widget feed-widget glass-effect" id="widget-feed" draggable="true">
+                    <h3>Movimientos de Hoy</h3>
+                    <div id="daily-feed-list" class="feed-list"></div>
+                    <div class="feed-summary border-top">
+                        <span id="feed-summary-in" class="text-income">+ ₡0</span>
+                        <span id="feed-summary-out" class="text-expense">- ₡0</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Goals View -->
+        <section id="view-goals" class="app-view">
+            <header class="app-header">
+                <h2>Mis Metas</h2>
+            </header>
+            <div class="flex-scroll-container pb-navbar">
+                <button id="btn-add-goal" class="btn-action btn-income mt-15" style="margin-bottom: 20px; width:100%;">+
+                    Nueva Meta</button>
+                <div id="goals-list"></div>
+            </div>
+        </section>
+
+        <!-- Zoo View -->
+        <section id="view-zoo" class="app-view">
+            <header class="app-header">
+                <h2>Zoológico Financiero</h2>
+            </header>
+            <div class="flex-scroll-container pb-navbar" id="zoo-list">
+                <!-- Pets will be injected here -->
+            </div>
+        </section>
+
+        <!-- History View -->
+        <section id="view-history" class="app-view">
+            <header class="app-header">
+                <h2>Historial de Movimientos</h2>
+                <button class="icon-btn" onclick="openReportModal()" title="Generar Reporte Inteligente">📄</button>
+            </header>
+            <div class="flex-scroll-container pb-navbar">
+                <!-- Month / Year Selector -->
+                <div id="history-tabs" class="history-month-tabs">
+                    <!-- Javascript will inject tabs like "Marzo 2026", "2025" here -->
+                </div>
+
+                <!-- Transactions List grouped by Day -->
+                <div id="history-list-container">
+                    <!-- Javascript will inject the grouped history here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Floating Pet Container -->
+    <div class="floating-pet-container" id="pet-container" onclick="Companion.interact()">
+        <div id="active-pet-wrapper">
+            <!-- JS injects IMG or Emoji here -->
+        </div>
+        <div id="pet-message" class="floating-speech hidden"></div>
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+        <button class="nav-item active" data-target="view-dashboard">
+            <div class="nav-icon">🏠</div>
+            <span>Inicio</span>
+        </button>
+        <button class="nav-item" data-target="view-goals">
+            <div class="nav-icon">🎯</div>
+            <span>Metas</span>
+        </button>
+        <button class="nav-item" data-target="view-zoo">
+            <div class="nav-icon">🐾</div>
+            <span>Mascotas</span>
+        </button>
+        <button class="nav-item" data-target="view-history">
+            <div class="nav-icon">📊</div>
+            <span>Historial</span>
+        </button>
+    </nav>
+
+    <!-- Modals -->
+
+    <!-- Transaction Modal -->
+    <div id="transaction-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3 id="modal-title">Nueva Transacción</h3>
+                <button class="btn-close" id="btn-close-modal">✖</button>
+            </header>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Monto</label>
+                    <div class="amount-input-wrapper">
+                        <select id="tx-currency">
+                            <option value="CRC">₡</option>
+                            <option value="USD">$</option>
+                        </select>
+                        <input type="number" id="tx-amount" placeholder="0.00" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Categoría</label>
+                    <input type="text" id="tx-category" placeholder="Ej. Comida, Transporte">
+                </div>
+                <!-- hidden input for type -->
+                <input type="hidden" id="tx-type" value="income">
+                <button id="btn-submit-tx" class="btn-action">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Transaction Modal -->
+    <div id="edit-tx-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Editar Movimiento</h3>
+                <button class="btn-close" id="btn-close-edit-tx-modal">✖</button>
+            </header>
+            <div class="modal-body">
+                <input type="hidden" id="edit-tx-id">
+                <div class="input-group">
+                    <label>Monto</label>
+                    <div class="amount-input-wrapper">
+                        <select id="edit-tx-currency">
+                            <option value="CRC">₡</option>
+                            <option value="USD">$</option>
+                        </select>
+                        <input type="number" id="edit-tx-amount" placeholder="0.00" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Categoría</label>
+                    <input type="text" id="edit-tx-category">
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button id="btn-submit-edit-tx" class="btn-action btn-primary" style="flex: 2;">Actualizar</button>
+                    <button id="btn-delete-tx" class="btn-action btn-expense" style="flex: 1;">🗑️ Borrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Account Modal -->
+    <div id="account-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Nueva Cuenta</h3>
+                <button class="btn-close" id="btn-close-account-modal">✖</button>
+            </header>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Nombre de la cuenta</label>
+                    <input type="text" id="account-name-input" placeholder="Ej. Ahorros, Débito">
+                </div>
+                <button id="btn-submit-account" class="btn-action btn-income">Crear Cuenta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Account Modal -->
+    <div id="edit-account-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Editar Cuenta</h3>
+                <button class="btn-close" id="btn-close-edit-account-modal">✖</button>
+            </header>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Nombre de la cuenta</label>
+                    <input type="text" id="edit-account-name-input" placeholder="Nombre de la cuenta">
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button id="btn-submit-edit-account" class="btn-action btn-primary" style="flex: 2;">Guardar
+                        Cambios</button>
+                    <button id="btn-delete-account" class="btn-action btn-expense" style="flex: 1;">🗑️
+                        Eliminar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Goal Modal -->
+    <div id="goal-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Nueva Meta de Ahorro</h3>
+                <button class="btn-close" id="btn-close-goal-modal">✖</button>
+            </header>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Nombre de la meta</label>
+                    <input type="text" id="goal-title" placeholder="Ej. Viaje, Laptop">
+                </div>
+                <div class="input-group">
+                    <label>Monto Objetivo</label>
+                    <div class="amount-input-wrapper">
+                        <select id="goal-currency">
+                            <option value="CRC">₡</option>
+                            <option value="USD">$</option>
+                        </select>
+                        <input type="number" id="goal-amount" placeholder="0.00" inputmode="decimal">
+                    </div>
+                </div>
+                <div class="input-group">
+                    <label>Fecha Límite</label>
+                    <input type="date" id="goal-date"
+                        style="width:100%; padding:15px; border-radius:12px; background:var(--bg-color); color:var(--text-primary); border:1px solid rgba(255,255,255,0.1);">
+                </div>
+                <button id="btn-submit-goal" class="btn-action btn-income">Crear Meta</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings & Personalization Modal -->
+    <div id="settings-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Configuración</h3>
+                <button class="btn-close"
+                    onclick="document.getElementById('settings-modal').classList.remove('active')">✖</button>
+            </header>
+            <div class="modal-body">
+                <p class="text-secondary text-center" style="margin-bottom: 20px;">Ajusta la seguridad, privacidad y
+                    colores de tu app. Se guardarán automáticamente.</p>
+                <div class="input-group">
+                    <label>Color de Acento (Botones e Íconos) 🎨</label>
+                    <input type="color" id="color-accent" value="#00FFCC" class="color-picker-input">
+                </div>
+                <div class="input-group">
+                    <label>Color de Fondo (Pantalla) 🌌</label>
+                    <input type="color" id="color-bg" value="#0F172A" class="color-picker-input">
+                </div>
+                <div class="input-group">
+                    <label>Color de las Tarjetas (Widgets) 🗂️</label>
+                    <input type="color" id="color-surface" value="#1E293B" class="color-picker-input">
+                </div>
+
+                <div class="input-group mt-20">
+                    <label>Moneda Principal Global 🌍</label>
+                    <select id="settings-base-currency"
+                        style="width:100%; padding:15px; border-radius:12px; background:rgba(255,255,255,0.05); color:var(--text-primary); border:1px solid rgba(255,255,255,0.1); font-size:16px; font-weight:600; outline:none; appearance:none; -webkit-appearance:none; text-align:center;">
+                        <option value="CRC" style="color:#000;">Colones (CRC ₡)</option>
+                        <option value="USD" style="color:#000;">Dólares (USD $)</option>
+                    </select>
+                    <p id="live-exchange-rate-info" class="text-secondary"
+                        style="font-size:12px; margin-top:8px; text-align:center;">Cargando tipo de cambio real... 📡
+                    </p>
+                </div>
+
+                <div class="input-group mt-20">
+                    <label>Preferencias de Mascota 🐾</label>
+                    <div
+                        style="display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+                        <span style="font-weight: 600;">Mostrar mascota flotante</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-pet-visibility" checked>
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="input-group mt-20">
+                    <label>Seguridad de la App 🔒</label>
+                    <button class="btn-action btn-primary" style="width: 100%; box-shadow:none;" onclick="setupPIN()"
+                        id="btn-setup-pin">Establecer PIN de Seguridad</button>
+                    <button class="btn-action btn-expense" style="width: 100%; display:none; box-shadow:none;"
+                        onclick="removePIN()" id="btn-remove-pin">Desactivar PIN Activo</button>
+                </div>
+
+                <button id="btn-reset-colors" class="btn-action mt-20"
+                    style="width: 100%; border: 1px solid var(--accent-primary); background: transparent; color: var(--accent-primary);">Restaurar
+                    Predeterminados</button>
+
+                <div class="input-group mt-20">
+                    <label>Orden del Inicio (arrastra los bloques)</label>
+                    <p class="text-secondary text-center" style="margin-top:10px;">Mantén presionado cualquier bloque
+                        para reordenarlo a tu gusto.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Grand Celebration Overlay -->
+    <div id="grand-celebration-overlay" class="celebration-overlay">
+        <div class="celebration-content">
+            <div class="trophy-icon">🏆</div>
+            <h1 class="celebration-title">¡META ALCANZADA!</h1>
+            <p id="celebration-msg" class="celebration-msg"></p>
+        </div>
+    </div>
+
+    <!-- Deposit Goal Modal -->
+    <div id="deposit-goal-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Abonar a tu Meta</h3>
+                <button class="btn-close" id="btn-close-deposit-modal">✖</button>
+            </header>
+            <div class="modal-body">
+                <input type="hidden" id="deposit-goal-id">
+                <div class="input-group">
+                    <label>Monto a abonar</label>
+                    <input type="number" id="deposit-goal-amount" placeholder="0.00" inputmode="decimal">
+                </div>
+                <div class="input-group">
+                    <label>¿Desde qué cuenta enviarás el dinero?</label>
+                    <select id="deposit-goal-account" class="input-select"
+                        style="width: 100%; padding: 15px; border-radius: 12px; background: var(--bg-color); color: var(--text-primary); border: 2px solid transparent; font-size: 16px; font-weight: 600; font-family: var(--font-main); outline: none; transition: border 0.3s;"></select>
+                </div>
+                <button id="btn-submit-deposit" class="btn-action btn-primary">🗄️ Confirmar Ahorro</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Release Goal Modal -->
+    <div id="release-goal-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>¡Meta Completada! 🎉</h3>
+                <button class="btn-close" id="btn-close-release-modal">✖</button>
+            </header>
+            <div class="modal-body">
+                <p class="text-secondary text-center" style="margin-bottom: 20px;">Has alcanzado tu objetivo.
+                    ¡Felicidades! ¿A qué cuenta deseas transferir los fondos acumulados?</p>
+                <input type="hidden" id="release-goal-id">
+                <div class="input-group">
+                    <label>Cuenta destino</label>
+                    <select id="release-goal-account" class="input-select"
+                        style="width: 100%; padding: 15px; border-radius: 12px; background: var(--bg-color); color: var(--text-primary); border: 2px solid transparent; font-size: 16px; font-weight: 600; font-family: var(--font-main); outline: none; transition: border 0.3s;"></select>
+                </div>
+                <button id="btn-submit-release" class="btn-action btn-income">💰 Recibir Fondos</button>
+            </div>
+        </div>
+    </div>
+    <!-- Report Modal -->
+    <div id="report-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Reporte Financiero Inteligente 📄✨</h3>
+                <button class="btn-close"
+                    onclick="document.getElementById('report-modal').classList.remove('active')">✖</button>
+            </header>
+            <div class="modal-body">
+                <p class="text-secondary" style="margin-bottom: 20px;">Descarga un análisis premium de tu historial
+                    directamente en tu dispositivo.</p>
+                <div class="input-group">
+                    <label>Filtrar por</label>
+                    <select id="report-filter-type" class="input-select"
+                        style="width: 100%; padding: 15px; border-radius: 12px; background: var(--bg-color); color: var(--text-primary); border: 2px solid transparent; font-size: 16px; font-weight: 600; font-family: var(--font-main); outline: none;"
+                        onchange="window.toggleReportFilters(this.value)">
+                        <option value="month">Mes Específico</option>
+                        <option value="range">Rango de Fechas</option>
+                        <option value="all">Todo el Historial</option>
+                    </select>
+                </div>
+
+                <div class="input-group" id="report-month-group">
+                    <label>Mes</label>
+                    <input type="month" id="report-month" class="input-select"
+                        style="width: 100%; padding: 15px; border-radius: 12px; background: var(--bg-color); color: var(--text-primary); border: 2px solid transparent; font-size: 16px; font-family: var(--font-main); outline: none;">
+                </div>
+
+                <div id="report-range-group" style="display:none; gap:10px;">
+                    <div class="input-group" style="flex:1;">
+                        <label>Desde</label>
+                        <input type="date" id="report-start-date" class="input-select"
+                            style="width: 100%; padding: 15px; border-radius: 12px; background: var(--bg-color); color: var(--text-primary); border: 2px solid transparent; font-size: 16px; font-family: var(--font-main); outline: none;">
+                    </div>
+                    <div class="input-group" style="flex:1;">
+                        <label>Hasta</label>
+                        <input type="date" id="report-end-date" class="input-select"
+                            style="width: 100%; padding: 15px; border-radius: 12px; background: var(--bg-color); color: var(--text-primary); border: 2px solid transparent; font-size: 16px; font-family: var(--font-main); outline: none;">
+                    </div>
+                </div>
+                <button id="btn-generate-report" class="btn-action btn-income mt-15"
+                    style="box-shadow: 0 0 20px var(--accent-secondary); color:#000;">✨ Generar Documento
+                    PDF/HTML</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/app.js"></script>
+</body>
+
+</html>
