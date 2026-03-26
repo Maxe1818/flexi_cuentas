@@ -522,6 +522,15 @@
     </div>
 
     <script src="assets/js/app.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./service-worker.js')
+                    .then(reg => console.log('Service Worker registrado ✨'))
+                    .catch(err => console.warn('Error registrando SW', err));
+            });
+        }
+    </script>
 </body>
 
 </html>

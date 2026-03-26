@@ -1,6 +1,8 @@
 {
   "name": "Flexi Cuentas",
   "short_name": "Flexi Cuentas",
+  "id": "com.maxe1818.flexicuentas",
+  "categories": ["finance", "productivity"],
   "description": "App financiera animada para la economía gig en LatAm.",
   "start_url": "./index.html",
   "scope": "./",
