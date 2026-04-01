@@ -147,17 +147,75 @@
                         <span id="feed-summary-out" class="text-expense">- ₡0</span>
                     </div>
                 </div>
+
+                <!-- NEW: Fast Budget Progress Widget (Termómetro) -->
+                <div class="widget budget-widget glass-effect" id="widget-budget-summary" draggable="true" onclick="App.showView('view-budget')">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                        <h3 style="margin: 0; font-size: 16px;">Diario de Cálculos</h3>
+                        <span id="budget-period-badge" class="badge-premium">Mensual</span>
+                    </div>
+                    <div class="budget-progress-container">
+                        <div class="budget-labels">
+                            <span id="budget-spent-text">Gastado: ₡0</span>
+                            <span id="budget-total-text">Límite: ₡0</span>
+                        </div>
+                        <div class="progress-bar-bg">
+                            <div id="budget-main-progress" class="progress-bar-fill" style="width: 0%;"></div>
+                        </div>
+                        <p id="budget-status-msg" style="font-size: 11px; margin-top: 8px; color: var(--text-secondary);">
+                            Toca para revisar tus hojas de cálculo.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- NEW: Flexible Budget View -->
+        <section id="view-budget" class="app-view">
+            <header class="app-header">
+                <h2>Mis Notas Diarias</h2>
+                <button class="icon-btn" onclick="document.getElementById('budget-setup-modal').classList.add('active')">✏️</button>
+            </header>
+            <div class="flex-scroll-container pb-navbar">
+                <div class="budget-card-premium glass-effect">
+                    <div class="budget-hero-info">
+                        <span class="budget-icon">📓</span>
+                        <div class="budget-main-data">
+                            <h4 id="view-budget-period-title">Hojas de Cálculo</h4>
+                            <p id="view-budget-dates" style="font-size: 12px; color: var(--text-secondary);">Cargando periodo...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="budget-summary-grid">
+                        <div class="summary-item">
+                            <label>Proyectado</label>
+                            <span id="view-budget-planned">₡0</span>
+                        </div>
+                        <div class="summary-item">
+                            <label>Saldo Neto</label>
+                            <span id="view-budget-remaining" class="text-income">₡0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="section-title-premium" style="margin: 20px 15px 10px;">
+                    <h3 style="font-size: 14px; text-transform: uppercase; letter-spacing: 1px; color: var(--accent-primary);">Control por Categorías</h3>
+                </div>
+                
+                <div id="budget-categories-list" class="budget-list-container">
+                    <!-- Categorías inyectadas por JS -->
+                </div>
             </div>
         </section>
 
         <!-- Goals View -->
         <section id="view-goals" class="app-view">
             <header class="app-header">
-                <h2>Mis Metas</h2>
+                <h2>Mis Ahorros</h2>
             </header>
             <div class="flex-scroll-container pb-navbar">
                 <button id="btn-add-goal" class="btn-action btn-income mt-15" style="margin-bottom: 20px; width:100%;">+
-                    Nueva Meta</button>
+                    Nuevo Ahorro</button>
                 <div id="goals-list"></div>
             </div>
         </section>
@@ -206,9 +264,13 @@
             <div class="nav-icon">🏠</div>
             <span>Inicio</span>
         </button>
+        <button class="nav-item" data-target="view-budget">
+            <div class="nav-icon">📈</div>
+            <span>Presupuesto</span>
+        </button>
         <button class="nav-item" data-target="view-goals">
             <div class="nav-icon">🎯</div>
-            <span>Metas</span>
+            <span>Ahorros</span>
         </button>
         <button class="nav-item" data-target="view-zoo">
             <div class="nav-icon">🐾</div>
@@ -240,9 +302,14 @@
                         <input type="number" id="tx-amount" placeholder="0.00" inputmode="decimal">
                     </div>
                 </div>
-                <div class="input-group">
-                    <label>Categoría</label>
-                    <input type="text" id="tx-category" placeholder="Ej. Comida, Transporte">
+                <div id="tx-category-group" class="input-group">
+                    <label id="tx-category-label">Categoría</label>
+                    <select id="tx-category"></select>
+                </div>
+                <!-- Description field for Income (hidden by default) -->
+                <div id="tx-description-group" class="input-group" style="display:none;">
+                    <label>Descripción del Ingreso</label>
+                    <input type="text" id="tx-description" placeholder="Ej. Pago de salario, Venta de garage...">
                 </div>
                 <!-- hidden input for type -->
                 <input type="hidden" id="tx-type" value="income">
@@ -270,9 +337,14 @@
                         <input type="number" id="edit-tx-amount" placeholder="0.00" inputmode="decimal">
                     </div>
                 </div>
-                <div class="input-group">
-                    <label>Categoría</label>
-                    <input type="text" id="edit-tx-category">
+                <div id="edit-tx-category-group" class="input-group">
+                    <label id="edit-tx-category-label">Categoría</label>
+                    <select id="edit-tx-category"></select>
+                </div>
+                <!-- Description field for Income Edit (hidden by default) -->
+                <div id="edit-tx-description-group" class="input-group" style="display:none;">
+                    <label>Descripción del Ingreso</label>
+                    <input type="text" id="edit-tx-description" placeholder="Ej. Pago de salario...">
                 </div>
                 <div style="display: flex; gap: 10px; margin-top: 20px;">
                     <button id="btn-submit-edit-tx" class="btn-action btn-primary" style="flex: 2;">Actualizar</button>
@@ -325,12 +397,12 @@
     <div id="goal-modal" class="modal-overlay">
         <div class="modal-content">
             <header class="modal-header">
-                <h3>Nueva Meta de Ahorro</h3>
+                <h3>Nuevo Plan de Ahorro</h3>
                 <button class="btn-close" id="btn-close-goal-modal">✖</button>
             </header>
             <div class="modal-body">
                 <div class="input-group">
-                    <label>Nombre de la meta</label>
+                    <label>Nombre del ahorro</label>
                     <input type="text" id="goal-title" placeholder="Ej. Viaje, Laptop">
                 </div>
                 <div class="input-group">
@@ -348,7 +420,7 @@
                     <input type="date" id="goal-date"
                         style="width:100%; padding:15px; border-radius:12px; background:var(--bg-color); color:var(--text-primary); border:1px solid rgba(255,255,255,0.1);">
                 </div>
-                <button id="btn-submit-goal" class="btn-action btn-income">Crear Meta</button>
+                <button id="btn-submit-goal" class="btn-action btn-income">Empezar a Ahorrar</button>
             </div>
         </div>
     </div>
@@ -417,6 +489,14 @@
                     <label>Orden del Inicio (arrastra los bloques)</label>
                     <p class="text-secondary text-center" style="margin-top:10px;">Mantén presionado cualquier bloque
                         para reordenarlo a tu gusto.</p>
+                </div>
+
+                <div class="divider-premium" style="margin-top: 30px; opacity: 0.2;"></div>
+
+                <div class="input-group mt-20">
+                    <label style="color: var(--color-expense);">Zona de Peligro</label>
+                    <p class="text-secondary" style="font-size: 12px; margin-bottom: 15px;">Esta acción eliminará permanentemente todos tus registros, cuentas, ahorros y personalizaciones. No hay forma de recuperar esta información.</p>
+                    <button class="btn-action btn-expense" style="width: 100%; box-shadow: none;" onclick="resetAppData()">Borrar todos los datos de la app</button>
                 </div>
             </div>
         </div>
@@ -517,6 +597,48 @@
                 <button id="btn-generate-report" class="btn-action btn-income mt-15"
                     style="box-shadow: 0 0 20px var(--accent-secondary); color:#000;">✨ Generar Documento
                     PDF/HTML</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Budget Setup Modal -->
+    <div id="budget-setup-modal" class="modal-overlay">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h3>Ajustar Notas y Límites</h3>
+                <button class="btn-close" onclick="document.getElementById('budget-setup-modal').classList.remove('active')">✖</button>
+            </header>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Frecuencia de Registro</label>
+                    <select id="budget-period-select" class="input-select">
+                        <option value="weekly">Semanal</option>
+                        <option value="biweekly">Quincenal</option>
+                        <option value="monthly" selected>Mensual</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Ingreso Estimado (₡)</label>
+                    <input type="number" id="budget-income-input" placeholder="0.00" inputmode="decimal">
+                </div>
+                
+                <div class="divider-premium"></div>
+                
+                <label style="font-weight: 800; font-size: 14px;">Hojas de Gasto</label>
+                <div id="budget-setup-categories" style="margin-top:10px; max-height: 250px; overflow-y: auto;">
+                    <!-- JS injects default categories here for editing -->
+                </div>
+                
+                <div class="divider-premium" style="margin: 20px 0;"></div>
+                <label style="font-weight: 800; font-size: 14px;">+ Nueva Categoría Dinámica</label>
+                <p class="text-secondary" style="font-size: 12px; margin-bottom: 15px; margin-top: 5px;">Añade tu propia categoría y asígnale un color único.</p>
+                <div class="input-group-row" style="margin-top:5px; align-items: stretch; gap: 10px;">
+                    <input type="text" id="new-custom-category-name" placeholder="Ej. Viajes, Mascota..." style="flex:2; border-radius: 8px; border: 2px solid #334155; background: var(--surface-color); color: var(--text-primary); padding: 0 10px; min-width: 0;" autocomplete="off">
+                    <input type="color" id="new-custom-category-color" value="#00F4FF" style="flex:0.5; height: 42px; width: 42px; border:none; padding:0; border-radius:8px; cursor:pointer; background:transparent;">
+                    <button class="btn-action btn-primary" onclick="BudgetManager.addCustomCategory()" style="flex:1; padding:0; height: 42px; border-radius: 8px;">Añadir</button>
+                </div>
+                
+                <button class="btn-action btn-income mt-20" onclick="BudgetManager.saveFromModal()">✍️ Guardar en mi Diario</button>
             </div>
         </div>
     </div>

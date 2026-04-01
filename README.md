@@ -1,4 +1,4 @@
-#  Flexi Cuentas v0.1
+#  Flexi Cuentas v0.2 - El Salto Premium 📈✨
 ### Tu ritmo, tu dinero. La App Financiera Premium para Costa Rica
 
 **Flexi Cuentas** no es solo una hoja de cálculo; es un **ecosistema financiero animado** diseñado para freelancers, nómadas digitales y cualquier persona en Costa Rica que necesite control exacto de su dinero con una estética **Premium Neon**.
@@ -16,7 +16,7 @@
 *   **Conversión Global:** Cambia la moneda base de toda la app (Saldos, Metas, Historial) al instante.
 
 ###  Zoológico Financiero (Tu AI Companion)
-*   **Mascotas Dinámicas:** 17 mascotas mágicas inspiradas en el estilo Pixar que reaccionan a tus gastos.
+*   **Mascotas Dinámicas:** 17 mascotas inspiradas en el estilo Pixar que reaccionan a tus gastos.
 *   **Feedback Empático:** Si gastas mucho, tu mascota se pone triste y te da consejos; si ahorras, celebramos juntos con fuegos artificiales.
 *   **Privacidad:** Opción para ocultar la mascota si prefieres un entorno de trabajo minimalista.
 
@@ -57,4 +57,4 @@ No requiere instalación compleja.
 
 ---
 
-*Desarrollado con ❤️ para la libertad financiera en Costa Rica.*
+*Desarrollado con ❤️ para la libertad financiera. Versión 0.2 Real-Update habilitada.*
