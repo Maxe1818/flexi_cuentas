@@ -188,7 +188,8 @@ function checkUnlocks() {
 }
 
 window.claimPet = function(petId) {
-    const today = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const today = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
     if (AppState.lastUnlockDate === today) {
         alert('Ya liberaste una mascota mágica hoy ✨. ¡Vuelve mañana para descubrir nuevos amigos!');
         return;
@@ -473,8 +474,14 @@ function renderDailyFeed() {
     if (!feedContainer) return;
     feedContainer.innerHTML = '';
     
-    const todayStr = new Date().toISOString().split('T')[0];
-    const todaysTx = AppState.transactions.filter(t => t.accountId === AppState.settings.activeAccountId && t.date.startsWith(todayStr));
+    const now = new Date();
+    const todaysTx = AppState.transactions.filter(t => {
+        if (t.accountId !== AppState.settings.activeAccountId) return false;
+        const d = new Date(t.date);
+        return d.getDate() === now.getDate() && 
+               d.getMonth() === now.getMonth() && 
+               d.getFullYear() === now.getFullYear();
+    });
     
     let totalIn = 0;
     let totalOut = 0;
@@ -663,12 +670,34 @@ function renderHistory() {
     });
 }
 
+let zooCountdownInterval = null;
+
+function updateZooCountdown() {
+    const countdownEls = document.querySelectorAll('.zoo-countdown-timer');
+    if (countdownEls.length === 0) return;
+
+    const now = new Date();
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    const diff = tomorrow - now;
+
+    const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+    const m = Math.floor((diff / 1000 / 60) % 60);
+    const s = Math.floor((diff / 1000) % 60);
+
+    const timeString = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+    countdownEls.forEach(el => {
+        el.textContent = `Disponible en ${timeString}`;
+    });
+}
+
 function renderZoo() {
     const zooList = document.getElementById('zoo-list');
     if (!zooList) return;
     zooList.innerHTML = '';
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
     const alreadyClaimedToday = AppState.lastUnlockDate === todayStr;
 
     PetData.forEach(pet => {
@@ -686,7 +715,7 @@ function renderZoo() {
             actionsHTML = `<button class="btn-action btn-primary mt-15" onclick="setActivePet('${pet.id}')">Elegir Mascota</button>`;
         } else if (isPending) {
             if (alreadyClaimedToday) {
-                actionsHTML = `<button class="btn-action mt-15" style="opacity:0.6; cursor:default;" disabled>🎁 Reclamar Mañana</button>`;
+                actionsHTML = `<button class="btn-action mt-15" style="opacity:0.6; cursor:default; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;" disabled><span style="font-size:14px;">🎁 Reclamar Mañana</span><span class="zoo-countdown-timer" style="font-size:11px; font-weight:normal; letter-spacing:1px;">Calculando...</span></button>`;
             } else {
                 actionsHTML = `<button class="btn-action btn-claim mt-15" onclick="claimPet('${pet.id}')">🎁 Reclamar Sorpresa Diaria</button>`;
             }
@@ -706,6 +735,13 @@ function renderZoo() {
         `;
         zooList.appendChild(widget);
     });
+
+    if (alreadyClaimedToday) {
+        if (!zooCountdownInterval) {
+            zooCountdownInterval = setInterval(updateZooCountdown, 1000);
+        }
+        updateZooCountdown();
+    }
 }
 
 window.setActivePet = function(petId) {
