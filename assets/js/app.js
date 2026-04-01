@@ -18,8 +18,38 @@ const AppState = {
     unlockedPets: JSON.parse(localStorage.getItem('fc_pets')) || ['beagle', 'cat', 'piggy'],
     pendingUnlocks: JSON.parse(localStorage.getItem('fc_pending_unlocks')) || [],
     lastUnlockDate: localStorage.getItem('fc_last_unlock') || null,
-    referentialRate: parseFloat(localStorage.getItem('fc_exchange_rate')) || 500
+    referentialRate: parseFloat(localStorage.getItem('fc_exchange_rate')) || 500,
+    budget: JSON.parse(localStorage.getItem('fc_budget')) || {
+        period: 'monthly', // weekly, biweekly, monthly
+        income: 0,
+        categories: [
+            { name: 'Alimentación', limit: 0, color: '#FF5E89' },
+            { name: 'Transporte', limit: 0, color: '#00F4FF' },
+            { name: 'Hogar', limit: 0, color: '#FFD700' },
+            { name: 'Entretenimiento', limit: 0, color: '#A855F7' },
+            { name: 'Gastos Médicos', limit: 0, color: '#F87171' },
+            { name: 'Otros', limit: 0, color: '#94A3B8' }
+        ]
+    }
 };
+
+// Auto-inject missing categories for existing users
+const requiredCategories = [
+    { name: 'Alimentación', limit: 0, color: '#FF5E89' },
+    { name: 'Transporte', limit: 0, color: '#00F4FF' },
+    { name: 'Hogar', limit: 0, color: '#FFD700' },
+    { name: 'Entretenimiento', limit: 0, color: '#A855F7' },
+    { name: 'Gastos Médicos', limit: 0, color: '#F87171' },
+    { name: 'Otros', limit: 0, color: '#94A3B8' }
+];
+
+requiredCategories.forEach(req => {
+    const isDeleted = AppState.settings.deletedCategories && AppState.settings.deletedCategories.includes(req.name);
+    const exists = AppState.budget.categories.find(c => c.name === req.name);
+    if (!exists && !isDeleted) {
+        AppState.budget.categories.push(req);
+    }
+});
 
 if (!AppState.settings.activeAccountId) AppState.settings.activeAccountId = 'default';
 AppState.transactions.forEach(t => { if (!t.accountId) t.accountId = 'default'; });
@@ -35,6 +65,7 @@ function saveState() {
     localStorage.setItem('fc_pending_unlocks', JSON.stringify(AppState.pendingUnlocks));
     localStorage.setItem('fc_last_unlock', AppState.lastUnlockDate || '');
     localStorage.setItem('fc_exchange_rate', AppState.referentialRate.toString());
+    localStorage.setItem('fc_budget', JSON.stringify(AppState.budget));
     renderApp();
 }
 
@@ -90,24 +121,56 @@ async function fetchLiveExchangeRate() {
     }
 }
 
+window.resetAppData = function() {
+    const confirmation = confirm("ADVERTENCIA CRÍTICA: Estás a punto de borrar permanentemente TODA tu información financiera, cuentas, ahorros y personalizaciones de Flexi Cuentas.\n\nEsta acción NO se puede deshacer. ¿Realmente deseas continuar?");
+    
+    if (confirmation) {
+        const secondConfirmation = confirm("Última oportunidad: ¿Confirmas que deseas eliminar todos los datos y empezar de cero?");
+        
+        if (secondConfirmation) {
+            // Clear all possible app keys from localStorage
+            const keysToRemove = [
+                'fc_transactions', 
+                'fc_goals', 
+                'fc_accounts', 
+                'fc_settings', 
+                'fc_pets', 
+                'fc_pending_unlocks', 
+                'fc_last_unlock', 
+                'fc_exchange_rate', 
+                'fc_budget'
+            ];
+            
+            keysToRemove.forEach(key => localStorage.removeItem(key));
+            
+            // Notification before reload
+            alert("Todos los datos han sido eliminados correctamente. La aplicación se reiniciará ahora.");
+            
+            // Full reload to reset memory state
+            window.location.reload();
+        }
+    }
+}
+
+
 // --- Pet System (The Zoo V4 - Pixar Edition) ---
 const PetData = [
-    { id: 'beagle', name: 'Rastreador', imgSrc: 'assets/img/pixar_beagle.png', type: 'base', skill: '¡Cazador experto de gastos hormiga! 🐾 Te ayuda a rastrear a dónde se va tu dinero.', intro: '¡Guau! Estoy listo para olfatear todos tus gastos ocultos hoy. 🐶🔎' },
-    { id: 'cat', name: 'Relajado', imgSrc: 'assets/img/pixar_cat.png', type: 'base', skill: 'Maestro zen del ahorro. 🧘 Te mantiene calmado cuando revisas el estado de cuenta.', intro: 'Miauuu... respira profundo. Dominaremos esos números con muchísima calma. 🐱✨' },
-    { id: 'piggy', name: 'Clásica', imgSrc: 'assets/img/pixar_piggy.png', type: 'base', skill: 'Escudo protector de tu patrimonio. 🐷 Alimenta su pancita con cada ahorro que logras.', intro: '¡Oink, oink! ¡Mi pancita está lista para hacer sonar todas esas monedas! 🐽💰' },
-    { id: 'lion', name: 'Guardián', imgSrc: 'assets/img/pixar_lion.png', type: 'unlockable', skill: '¡Protección feroz para tus billetes grandes! 🦁 Asusta a las decisiones impulsivas.', intro: '¡ROAAAR! Yo cuidaré de tus billetes grandes. ¡Nadie tocará nuestro tesoro! 🦁👑', unlockCondition: (state) => state.goals.some(g => (g.currency === 'USD' ? g.totalAmount : g.totalAmount/state.referentialRate) > 100) },
-    { id: 'panda', name: 'Eco-Ahorrador', imgSrc: 'assets/img/pixar_panda.png', type: 'unlockable', skill: 'Fomenta el minimalismo pacífico. 🐼 Ayuda a evitar las compras innecesarias.', intro: 'Mastiquemos esto lentamente... ¿Realmente ocupabas comprar eso tan rápido? 🐼🎋', unlockCondition: (state) => calculateTotalBalance(state) > 0 },
-    { id: 'giraffe', name: 'Visionaria', imgSrc: 'assets/img/pixar_giraffe.png', type: 'unlockable', skill: 'Mantiene tu vista en las metas a larguísimo plazo. 🦒 ¡Casi imposible desviarse!', intro: '¡Desde aquí arriba veo el gran éxito de nuestro futuro! ¡Sigue así! 🦒✨', unlockCondition: (state) => calculateTotalBalance(state) > 1000 },
-    { id: 'monkey', name: 'Ágil', imgSrc: 'assets/img/pixar_monkey.png', type: 'unlockable', skill: 'Súper analista de micro-transacciones. 🐒 Se mueve tan rápido como tu propio dinero.', intro: '¡Uh uh ah ah! ¡He contado exactamente cada céntimo que movimos hoy! 🐒🍌', unlockCondition: (state) => state.transactions.length >= 20 },
-    { id: 'bunny', name: 'Veloz', imgSrc: 'assets/img/pixar_bunny.png', type: 'unlockable', skill: '¡Acelerador ultra-rápido para metas cortas! 🐰 Celebra tus logros repentinos contigo.', intro: '¡Boing, boing! ¡Vamos saltando directamente hacia el cumplimiento de la meta! 🐰🚀', unlockCondition: (state) => state.goals.some(g => g.savedAmount >= g.totalAmount) },
-    { id: 'penguin', name: 'Calculador', imgSrc: 'assets/img/pixar_penguin.png', type: 'unlockable', skill: 'El contador de hielo. 🐧 Mantiene todos los presupuestos estrictamente congelados.', intro: 'Mis matemáticas no mienten. ¡El presupuesto se mantiene frío y congelado! 🐧❄️', unlockCondition: (state) => state.transactions.filter(t => t.type === 'expense').length >= 10 },
-    { id: 'cow', name: 'Rendidora', imgSrc: 'assets/img/pixar_cow.png', type: 'unlockable', skill: 'Maximizadora de Ingresos.', unlockCondition: (state) => state.transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount : t.amount/state.referentialRate), 0) > 1000 },
-    { id: 'sloth', name: 'Zen', imgSrc: 'assets/img/pixar_sloth.png', type: 'unlockable', skill: 'Promueve gastos muy pensados y a ritmo lento.', unlockCondition: (state) => state.transactions.filter(t => t.type === 'income').length >= 5 },
-    { id: 'toucan', name: 'Atento', imgSrc: 'assets/img/pixar_toucan.png', type: 'unlockable', skill: 'Mantiene visión panorámica en tus finanzas.', unlockCondition: (state) => state.goals.length >= 2 },
-    { id: 'frog', name: 'Saltarín', imgSrc: 'assets/img/pixar_frog.png', type: 'unlockable', skill: 'Rebote rápido después de grandes gastos.', unlockCondition: (state) => state.transactions.filter(t => t.type === 'expense').length >= 5 },
-    { id: 'fox', name: 'Astuto', imgSrc: 'assets/img/pixar_fox.png', type: 'unlockable', skill: 'Cazador de ofertas inteligentes.', unlockCondition: (state) => calculateTotalBalance(state) > 5000 },
-    { id: 'turtle', name: 'Sabio', imgSrc: 'assets/img/pixar_turtle.png', type: 'unlockable', skill: 'Inversor a largo plazo, lento pero invencible.', unlockCondition: (state) => state.goals.filter(g => g.savedAmount > 0).length >= 1 },
-    { id: 'butterfly', name: 'Transformación', imgSrc: 'assets/img/pixar_butterfly.png', type: 'unlockable', skill: 'Evolución financiera hacia la libertad. Se desbloquea con el tiempo.', unlockCondition: (state) => calculateTotalBalance(state) > 10000 },
+    { id: 'beagle', name: 'Rastreador', imgSrc: 'assets/img/pixar_beagle.png', type: 'base', skill: 'Me encanta rastrear esos gastos pequeñitos que a veces se nos escapan. Así siempre sabrás exactamente a dónde va tu dinero.', intro: '¡Hola! Mi olfato me dice que hoy vamos a encontrar formas increíbles de cuidar tu capital juntos.' },
+    { id: 'cat', name: 'Relajado', imgSrc: 'assets/img/pixar_cat.png', type: 'base', skill: 'Estoy aquí para que te sientas con total calma mientras organizamos tus cuentas. Nada de estrés financiero hoy.', intro: 'Respira profundo que todo está bajo control. Vamos a revisar tus números con muchísima tranquilidad y paz.' },
+    { id: 'piggy', name: 'Clásica', imgSrc: 'assets/img/pixar_piggy.png', type: 'base', skill: 'Soy el guardián de tus ahorros favoritos. Cada moneda que guardes me hace muy feliz porque así tus sueños crecen.', intro: '¡Qué alegría! Me encanta ver cómo tus proyectos se hacen realidad con cada ahorro que logras conmigo.' },
+    { id: 'lion', name: 'Guardián', imgSrc: 'assets/img/pixar_lion.png', type: 'unlockable', skill: 'Protejo tus billetes grandes con mucha valentía. Juntos haremos que tus ahorros más importantes estén siempre seguros.', intro: '¡Aquí estoy! Nadie tocará nuestro tesoro. Vamos a cuidar tus ahorros más valiosos con mucha fuerza y decisión.', unlockCondition: (state) => state.goals.some(g => (g.currency === 'USD' ? g.totalAmount : g.totalAmount/state.referentialRate) > 100) },
+    { id: 'panda', name: 'Eco-Ahorrador', imgSrc: 'assets/img/pixar_panda.png', type: 'unlockable', skill: 'Te ayudo a elegir solo lo que de verdad te hace feliz. Menos compras por impulso y mucha más paz mental para ti.', intro: 'Vamos con calma. La clave de un buen balance es elegir con inteligencia y disfrutar de lo que ya tenemos hoy.', unlockCondition: (state) => calculateTotalBalance(state) > 0 },
+    { id: 'giraffe', name: 'Visionaria', imgSrc: 'assets/img/pixar_giraffe.png', type: 'unlockable', skill: 'Tengo la vista puesta en tus sueños más grandes. Es casi imposible desviarse del camino si miramos siempre adelante.', intro: '¡Desde aquí arriba el éxito se ve increíble! Sigue así que vamos por muy buen camino hacia todas tus metas.', unlockCondition: (state) => calculateTotalBalance(state) > 1000 },
+    { id: 'monkey', name: 'Ágil', imgSrc: 'assets/img/pixar_monkey.png', type: 'unlockable', skill: 'Analizo tus movimientos más rápidos para que ni un solo céntimo se nos escape. ¡Soy súper veloz con los números!', intro: '¡Qué ritmo llevamos! He contado cada detalle de tus movimientos de hoy para asegurarme de que todo esté perfecto.', unlockCondition: (state) => state.transactions.length >= 20 },
+    { id: 'bunny', name: 'Veloz', imgSrc: 'assets/img/pixar_bunny.png', type: 'unlockable', skill: 'Soy el impulso extra que necesitas para cumplir tus metas cortas en tiempo récord. ¡Vamos saltando de alegría!', intro: '¡Vamos! Vamos a toda velocidad hacia el cumplimiento de tus objetivos. ¡Me emociona ver cuánto has avanzado hoy!', unlockCondition: (state) => state.goals.some(g => g.savedAmount >= g.totalAmount) },
+    { id: 'penguin', name: 'Calculador', imgSrc: 'assets/img/pixar_penguin.png', type: 'unlockable', skill: 'Me encantan las matemáticas exactas. Te ayudo a que tus presupuestos se mantengan siempre ordenados y muy estables.', intro: 'Los números no mienten y nuestras cuentas están impecables. Mantener este orden es la mejor decisión que puedes tomar hoy.', unlockCondition: (state) => state.transactions.filter(t => t.type === 'expense').length >= 10 },
+    { id: 'cow', name: 'Rendidora', imgSrc: 'assets/img/pixar_cow.png', type: 'unlockable', skill: 'Me encanta ver cómo tus ingresos crecen cada día. Estoy aquí para celebrar cada nueva oportunidad de ganar dinero.', unlockCondition: (state) => state.transactions.filter(t => t.type === 'income').reduce((acc, t) => acc + (t.currency === 'USD' ? t.amount : t.amount/state.referentialRate), 0) > 1000 },
+    { id: 'sloth', name: 'Zen', imgSrc: 'assets/img/pixar_sloth.png', type: 'unlockable', skill: 'Amo el ritmo pausado. Te ayudo a pensar cada gasto con mucha calma para que tu dinero rinda muchísimo más.', unlockCondition: (state) => state.transactions.filter(t => t.type === 'income').length >= 5 },
+    { id: 'toucan', name: 'Atento', imgSrc: 'assets/img/pixar_toucan.png', type: 'unlockable', skill: 'Desde aquí arriba cuido todo tu panorama financiero. Nada se me escapa porque siempre estoy muy atento a tus cuentas.', unlockCondition: (state) => state.goals.length >= 2 },
+    { id: 'frog', name: 'Saltarín', imgSrc: 'assets/img/pixar_frog.png', type: 'unlockable', skill: '¡Rebote rápido! Si tenemos un gasto grande, yo te ayudo a saltar de regreso al equilibrio con mucha agilidad.', unlockCondition: (state) => state.transactions.filter(t => t.type === 'expense').length >= 5 },
+    { id: 'fox', name: 'Astuto', imgSrc: 'assets/img/pixar_fox.png', type: 'unlockable', skill: 'Soy experto en encontrar las mejores formas de hacer rendir tu dinero. ¡Juntos seremos súper estratégicos hoy!', unlockCondition: (state) => calculateTotalBalance(state) > 5000 },
+    { id: 'turtle', name: 'Sabio', imgSrc: 'assets/img/pixar_turtle.png', type: 'unlockable', skill: 'Voy lento pero seguro. Te enseño que la paciencia y la constancia son el secreto más grande del éxito financiero.', unlockCondition: (state) => state.goals.filter(g => g.savedAmount > 0).length >= 1 },
+    { id: 'butterfly', name: 'Transformación', imgSrc: 'assets/img/pixar_butterfly.png', type: 'unlockable', skill: 'Me emociona ver cómo tus finanzas evolucionan. Estás transformando tu vida financiera en algo brillante y libre.', unlockCondition: (state) => calculateTotalBalance(state) > 10000 },
     { id: 'placeholder', name: 'Próximamente', icon: '👤', type: 'locked', skill: 'Misterio...', unlockCondition: () => false }
 ];
 
@@ -156,13 +219,13 @@ const Companion = {
         const day = new Date().getDay();
         
         let dailyGreeting = "";
-        if (day === 1) dailyGreeting = "¡Feliz Lunes! 🔋 Empecemos la semana con toda la energía.";
-        else if (day === 2) dailyGreeting = "¡Maravilloso Martes! 🎯 Sigamos enfocados en la meta.";
-        else if (day === 3) dailyGreeting = "¡Miércoles, mitad de semana! 🐪 Ya casi llegamos.";
-        else if (day === 4) dailyGreeting = "¡Jueves! 📈 Prepárate para cerrar la semana con éxito.";
-        else if (day === 5) dailyGreeting = "¡Viernes al fin! 🎊 Recuerda cuidar tu dinero el finde.";
-        else if (day === 6) dailyGreeting = "¡Sábado de relax! 🏖️ Está bien darse un pequeño gusto hoy.";
-        else if (day === 0) dailyGreeting = "¡Domingo familiar! 📅 Aprovecha para planear tu próxima semana.";
+        if (day === 1) dailyGreeting = "Es lunes y es el momento perfecto para organizar la semana con mente positiva.";
+        else if (day === 2) dailyGreeting = "El martes ya está aquí. Sigamos con ese gran enfoque en tus planes de ahorro.";
+        else if (day === 3) dailyGreeting = "Mitad de semana. Vas por muy buen camino, no te detengas ahora.";
+        else if (day === 4) dailyGreeting = "Ya casi termina la semana laboral. Mantén la disciplina y el éxito será tuyo.";
+        else if (day === 5) dailyGreeting = "Por fin es viernes. Disfruta mucho, pero recuerda cuidar el equilibrio de tus finanzas.";
+        else if (day === 6) dailyGreeting = "Sábado para descansar y disfrutar. Un pequeño gusto bien planificado siempre vale la pena.";
+        else if (day === 0) dailyGreeting = "Domingo de paz. Es un buen momento para visualizar tus metas de la próxima semana.";
 
         const msg = `<span style="display:block;margin-bottom:5px;font-size:12px;color:rgba(255,255,255,0.7);">${dailyGreeting}</span>${activePet.intro || `¡Hola! Soy ${activePet.name}. ${activePet.skill}`}`;
         this.say(msg, 5000);
@@ -189,7 +252,7 @@ const Companion = {
         visualEl.className += ' pixar-celebrate';
         
         document.body.classList.add('cinematic-darken');
-        this.say('¡VICTORIA FINANCIERA! 🎉🚀', 5000);
+        this.say('¡Excelente progreso! Tus finanzas están brillando hoy.', 5000);
         fireworks();
         
         setTimeout(() => {
@@ -214,32 +277,56 @@ const Companion = {
             if (day === 0 || day === 5 || day === 6) { 
                 // Fin de semana (Viernes, Sábado, Domingo)
                 msgs = [
-                    "¡Gastos de fin de semana detectados! 🎉 Disfruta con inteligencia.",
-                    "Relájate, es finde. 🏖️ Pero no pierdas de vista tu meta de ahorro.",
-                    "Salir a disfrutar está bien. ¡Te ganaste ese descanso! 🍕 Solo no olvides registrarlo todo.",
-                    "¡Ups! Rompiendo un poquito el chancho hoy, ¿eh? ¡Pásala increíble hoy! 🎊"
+                    "He registrado tu salida de hoy. Disfrutar del tiempo libre con inteligencia es clave para tu felicidad.",
+                    "Es fin de semana y te mereces un descanso. Solo mantengamos un ojo en nuestro plan para no desviarnos.",
+                    "Me encanta verte disfrutar. Anotar tus gastos hoy es la mejor forma de asegurar que mañana sigas así de bien.",
+                    "Un gasto de fin de semana bien registrado es la base de una semana exitosa."
                 ];
             } else {
                 // Entre semana (Lunes a Jueves)
                 msgs = [
-                    "¡Ouch! Ese gasto dolió, pero anotar es de grandes líderes. ¡Tú puedes recuperarte! 💪",
-                    "¡No te preocupes! Todo genio tiene sus resbalones. Lo importante es mantener el control. ❤️",
-                    "¡Respira profundo, campeón! La organización siempre trae muchísima paz financiera. 🐾",
-                    "El dinero a veces tiene que salir para que entre más. ¡Mantén fuerte la disciplina semanal! 🔥"
+                    "A veces surgen gastos inesperados, pero lo importante es que tienes el control al registrarlos.",
+                    "No te preocupes por este movimiento. Cada registro es una lección que te acerca más a tu libertad financiera.",
+                    "Respira profundo. Mantener el orden en tus cuentas hoy te dará mucha tranquilidad y paz mañana.",
+                    "El dinero fluye constantemente. Lo importante es tu disciplina para dirigirlo hacia donde tú quieres."
                 ];
             }
-            this.say(`<span style="color:var(--accent-primary); font-weight:800;">Aviso:</span><br/>${msgs[Math.floor(Math.random() * msgs.length)]}`, 6000);
+            this.say(`Aviso importante:<br/>${msgs[Math.floor(Math.random() * msgs.length)]}`, 6000);
             
             setTimeout(() => {
                 if(visualEl) visualEl.classList.remove('pixar-empathy');
             }, 6000);
         } else {
-            const day = new Date().getDay();
-            if (day === 0 || day === 5 || day === 6) {
-                this.say("¡Gasto de fin de semana anotado! 📅 A disfrutar sin remordimientos.", 3000);
+            // Check budget status for specific feedback
+            const budgetStatus = BudgetManager.getSummary();
+            if (budgetStatus.percent > 90) {
+                visualEl.className = visualEl.tagName === 'IMG' ? 'pixar-pet-avatar' : 'emoji-pet-avatar';
+                void visualEl.offsetWidth;
+                visualEl.className += ' pixar-empathy';
+                this.say("Atención: Estamos muy cerca del límite de tu presupuesto. Es un buen momento para reflexionar antes del próximo gasto.", 5000);
             } else {
-                this.say("¡Anotado con éxito! Mantener el registro es tu súper-poder. 📋✨", 3000);
+                const day = new Date().getDay();
+                if (day === 0 || day === 5 || day === 6) {
+                    this.say("Movimiento registrado. Disfruta de tu tiempo libre con tranquilidad.", 3000);
+                } else {
+                    this.say("Anotado correctamente. Mantener este hábito es tu mejor herramienta para el éxito.", 3000);
+                }
             }
+        }
+    },
+
+    updatePetMoodForBudget() {
+        if (AppState.settings.hidePet) return;
+        const budget = BudgetManager.getSummary();
+        const visualEl = this.getEl();
+        if (!visualEl) return;
+
+        if (budget.percent > 100) {
+            this.say("¡Vaya! Los números no mienten. Nos hemos pasado un poco hoy de los cálculos estimados. 📓🛑", 4000);
+        } else if (budget.percent > 85) {
+            this.say("¡Ojo! En mis notas veo que ya casi llegamos al límite de esta hoja. ¿Lo pensamos bien antes de gastar? 🖋️🤔", 4000);
+        } else if (budget.percent < 30 && budget.total > 0) {
+            this.say("¡Qué orden! 🎯 Tus libros contables dicen que vas genial. ¡Eres un maestro de los cálculos!", 4000);
         }
     },
     
@@ -581,13 +668,16 @@ function renderZoo() {
     if (!zooList) return;
     zooList.innerHTML = '';
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    const alreadyClaimedToday = AppState.lastUnlockDate === todayStr;
+
     PetData.forEach(pet => {
         const isUnlocked = AppState.unlockedPets.includes(pet.id);
         const isPending = AppState.pendingUnlocks.includes(pet.id);
         const isActive = AppState.settings.activePetId === pet.id;
         
         const widget = document.createElement('div');
-        widget.className = `widget glass-effect pet-zoo-card ${isUnlocked || isPending ? 'unlocked' : 'locked'} ${isActive ? 'active-pet' : ''}`;
+        widget.className = `widget glass-effect pet-zoo-card ${isUnlocked ? 'unlocked' : 'locked'} ${isActive ? 'active-pet' : ''}`;
         
         let actionsHTML = '';
         if (isActive) {
@@ -595,16 +685,22 @@ function renderZoo() {
         } else if (isUnlocked) {
             actionsHTML = `<button class="btn-action btn-primary mt-15" onclick="setActivePet('${pet.id}')">Elegir Mascota</button>`;
         } else if (isPending) {
-            actionsHTML = `<button class="btn-action btn-claim mt-15" onclick="claimPet('${pet.id}')">🎁 Reclamar Mascota (1/Día)</button>`;
+            if (alreadyClaimedToday) {
+                actionsHTML = `<button class="btn-action mt-15" style="opacity:0.6; cursor:default;" disabled>🎁 Reclamar Mañana</button>`;
+            } else {
+                actionsHTML = `<button class="btn-action btn-claim mt-15" onclick="claimPet('${pet.id}')">🎁 Reclamar Sorpresa Diaria</button>`;
+            }
         } else if (pet.type !== 'locked') {
-            actionsHTML = `<p class="locked-text">🔒 Sigue usándolo para desbloquear.</p>`;
+            actionsHTML = `<p class="locked-text" style="font-size:11px; opacity:0.7;">🔒 Sigue usando la app para descubrir este misterio.</p>`;
         }
 
+        const surpriseImg = isUnlocked ? (pet.imgSrc ? `<img src="${pet.imgSrc}" class="zoo-img">` : pet.icon) : (pet.imgSrc ? `<img src="${pet.imgSrc}" class="zoo-img silhouette">` : '❓');
+
         widget.innerHTML = `
-            <div class="zoo-avatar">${isUnlocked || isPending ? (pet.imgSrc ? `<img src="${pet.imgSrc}" class="zoo-img">` : pet.icon) : '❓'}</div>
+            <div class="zoo-avatar">${surpriseImg}</div>
             <div class="zoo-details" style="width:100%;">
-                <h3>${pet.name}</h3>
-                <p>${pet.skill}</p>
+                <h3>${isUnlocked ? pet.name : '???'}</h3>
+                <p style="font-style: italic;">${isUnlocked ? pet.skill : 'Habilidad secreta... desbloquéala para verla.'}</p>
                 ${actionsHTML}
             </div>
         `;
@@ -626,7 +722,7 @@ function renderGoals() {
     goalsList.innerHTML = '';
 
     if (AppState.goals.length === 0) {
-        goalsList.innerHTML = '<p class="text-secondary text-center">No tienes metas activas. ¡Crea una!</p>';
+        goalsList.innerHTML = '<p class="text-secondary text-center">No tienes ahorros activos. ¡Empieza uno hoy!</p>';
         return;
     }
 
@@ -641,6 +737,7 @@ function renderGoals() {
         const quotaMode = goal.quotaMode || 'daily';
         let quotaMultiplier = 1;
         if (quotaMode === 'weekly') quotaMultiplier = 7;
+        if (quotaMode === 'biweekly') quotaMultiplier = 15;
         if (quotaMode === 'monthly') quotaMultiplier = 30;
         const finalQuota = dailyQuota * quotaMultiplier;
 
@@ -652,7 +749,7 @@ function renderGoals() {
                     <h3>${goal.title}</h3>
                     <span style="font-weight: 800; color: var(--accent-primary); font-size: 18px;">${goal.currency === 'CRC' ? '₡' : '$'} ${goal.totalAmount.toLocaleString()}</span>
                 </div>
-                <button class="icon-btn" onclick="deleteGoal('${goal.id}')" style="width: 35px; height: 35px; font-size: 15px; color: var(--color-expense); background: rgba(255,0,0,0.1); box-shadow: none;" title="Eliminar Meta">🗑️</button>
+                <button class="icon-btn" onclick="deleteGoal('${goal.id}')" style="width: 35px; height: 35px; font-size: 15px; color: var(--color-expense); background: rgba(255,0,0,0.1); box-shadow: none;" title="Eliminar Ahorro">🗑️</button>
             </div>
             <div class="progress-bar-bg">
                 <div class="progress-bar-fill" style="width: ${progressPct}%"></div>
@@ -661,21 +758,22 @@ function renderGoals() {
                 <p>Acumulado: ${goal.savedAmount.toLocaleString()}</p>
                 <p>Faltan: <strong>${amountRemaining.toLocaleString()} ${goal.currency}</strong></p>
                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <p>Cuota sugerida: <strong>${Math.ceil(finalQuota).toLocaleString()} ${goal.currency}</strong></p>
-                    <select onchange="window.updateQuotaMode('${goal.id}', this.value)" style="background: rgba(255,255,255,0.1); color: var(--text-primary); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; font-size: 12px; padding: 3px 8px; font-family: var(--font-main); font-weight: 600; outline: none; cursor: pointer;">
-                        <option value="daily" style="color:#000" ${quotaMode === 'daily' ? 'selected' : ''}>por día</option>
-                        <option value="weekly" style="color:#000" ${quotaMode === 'weekly' ? 'selected' : ''}>por sem.</option>
-                        <option value="monthly" style="color:#000" ${quotaMode === 'monthly' ? 'selected' : ''}>por mes</option>
+                    <p>Referencia: <strong>${Math.ceil(finalQuota).toLocaleString()} ${goal.currency}</strong></p>
+                    <select class="premium-small-select" onchange="window.updateQuotaMode('${goal.id}', this.value)">
+                        <option value="daily" ${quotaMode === 'daily' ? 'selected' : ''}>por día</option>
+                        <option value="weekly" ${quotaMode === 'weekly' ? 'selected' : ''}>por sem.</option>
+                        <option value="biweekly" ${quotaMode === 'biweekly' ? 'selected' : ''}>por quinc.</option>
+                        <option value="monthly" ${quotaMode === 'monthly' ? 'selected' : ''}>por mes</option>
                     </select>
                 </div>
                 <p>${daysRemaining} días restantes</p>
             </div>
             ${progressPct >= 100 && !goal.isReleased ? 
-                `<button class="btn-action btn-income mt-15" style="box-shadow: 0 0 15px var(--accent-secondary);" onclick="openReleaseGoalModal('${goal.id}')">🎉 Liberar Fondos</button>` 
+                `<button class="btn-action btn-income mt-15" style="box-shadow: 0 0 15px var(--accent-secondary);" onclick="openReleaseGoalModal('${goal.id}')">🎉 Liberar Ahorros</button>` 
                 : 
                 (goal.isReleased ? 
-                    `<button class="btn-action mt-15" style="opacity:0.5; cursor:not-allowed;" disabled>Meta Completada y Liberada</button>`
-                    : `<button class="btn-action btn-primary mt-15" onclick="openDepositGoalModal('${goal.id}')">+ Abonar</button>`)
+                    `<button class="btn-action mt-15" style="opacity:0.5; cursor:not-allowed;" disabled>Ahorro Completado</button>`
+                    : `<button class="btn-action btn-primary mt-15" onclick="openDepositGoalModal('${goal.id}')">+ Agregar al Ahorro</button>`)
             }
         `;
         goalsList.appendChild(widget);
@@ -742,7 +840,22 @@ window.openEditTxModal = function(txId) {
     document.getElementById('edit-tx-id').value = tx.id;
     document.getElementById('edit-tx-amount').value = tx.amount;
     document.getElementById('edit-tx-currency').value = tx.currency;
-    document.getElementById('edit-tx-category').value = tx.category;
+    
+    const catGroup = document.getElementById('edit-tx-category-group');
+    const descGroup = document.getElementById('edit-tx-description-group');
+    const modalTitle = document.getElementById('edit-modal-title');
+    
+    if (tx.type === 'income') {
+        if (modalTitle) modalTitle.textContent = 'Editar Ingreso';
+        if (catGroup) catGroup.style.display = 'none';
+        if (descGroup) descGroup.style.display = 'block';
+        document.getElementById('edit-tx-description').value = tx.category === 'Ingreso General' ? '' : tx.category;
+    } else {
+        if (modalTitle) modalTitle.textContent = 'Editar Gasto';
+        if (catGroup) catGroup.style.display = 'block';
+        if (descGroup) descGroup.style.display = 'none';
+        populateCategorySelect('edit-tx-category', tx.type, tx.category);
+    }
     
     document.getElementById('edit-tx-modal').classList.add('active');
 }
@@ -1111,6 +1224,7 @@ function renderApp() {
     renderZoo();
     renderHistory();
     renderChart();
+    BudgetManager.render();
 }
 
 let expenseChartInstance = null;
@@ -1277,6 +1391,309 @@ window.toggleChartType = function() {
     saveState();
     renderChart();
 };
+
+// --- Budget Module Logic ---
+const BudgetManager = {
+    getPeriodDates() {
+        const now = new Date();
+        let start = new Date(now);
+        let end = new Date(now);
+        
+        switch(AppState.budget.period) {
+            case 'weekly':
+                const day = now.getDay(); // 0 is Sunday
+                const diffToMonday = day === 0 ? -6 : 1 - day;
+                start.setDate(now.getDate() + diffToMonday);
+                end.setDate(start.getDate() + 6);
+                break;
+            case 'biweekly':
+                if (now.getDate() <= 15) {
+                    start.setDate(1);
+                    end.setDate(15);
+                } else {
+                    start.setDate(16);
+                    end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                }
+                break;
+            case 'monthly':
+            default:
+                start.setDate(1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+                break;
+        }
+        start.setHours(0,0,0,0);
+        end.setHours(23,59,59,999);
+        return { start, end };
+    },
+
+    getSummary() {
+        const { start, end } = this.getPeriodDates();
+        const periodTxs = AppState.transactions.filter(t => {
+            const d = new Date(t.date);
+            return t.accountId === AppState.settings.activeAccountId && 
+                   t.type === 'expense' && 
+                   d >= start && d <= end;
+        });
+
+        let spent = 0;
+        const categorySpending = {};
+        
+        periodTxs.forEach(t => {
+            const amt = convertAmount(t.amount, t.currency, AppState.settings.baseCurrency);
+            spent += amt;
+            
+            // Match category EXACTLY
+            const budgetCat = AppState.budget.categories.find(c => t.category === c.name);
+            const catName = budgetCat ? budgetCat.name : 'Otros';
+            categorySpending[catName] = (categorySpending[catName] || 0) + amt;
+        });
+
+        const totalLimit = AppState.budget.categories.reduce((acc, c) => acc + c.limit, 0);
+        const percent = totalLimit > 0 ? (spent / totalLimit) * 100 : 0;
+        
+        return { spent, total: totalLimit, percent, categorySpending, start, end };
+    },
+
+    render() {
+        const summary = this.getSummary();
+        
+        // Update Dashboard Widget
+        const spentEl = document.getElementById('budget-spent-text');
+        const totalEl = document.getElementById('budget-total-text');
+        const barEl = document.getElementById('budget-main-progress');
+        const badgeEl = document.getElementById('budget-period-badge');
+        const statusEl = document.getElementById('budget-status-msg');
+
+        if (spentEl) spentEl.textContent = `Gastado: ${AppState.settings.baseCurrency === 'CRC' ? '₡' : '$'}${Math.floor(summary.spent).toLocaleString()}`;
+        if (totalEl) totalEl.textContent = `Límite: ${Math.floor(summary.total).toLocaleString()}`;
+        
+        if (barEl) {
+            barEl.style.width = `${Math.min(100, summary.percent)}%`;
+            barEl.classList.remove('warning', 'danger');
+            if (summary.percent > 90) barEl.classList.add('danger');
+            else if (summary.percent > 70) barEl.classList.add('warning');
+        }
+
+        if (badgeEl) {
+            const labels = { weekly: 'Semana Actual', biweekly: 'Quincena Actual', monthly: 'Mes Actual' };
+            badgeEl.textContent = labels[AppState.budget.period];
+        }
+
+        if (statusEl) {
+            if (summary.total === 0) statusEl.textContent = "¡Empieza tu diario de notas hoy! 📓";
+            else if (summary.percent > 100) statusEl.textContent = "🛑 Cálculos excedidos. Toca para revisar tus hojas.";
+            else if (summary.percent > 85) statusEl.textContent = "⚠️ ¡Atención! Tus notas muestran que el saldo es bajo.";
+            else statusEl.textContent = "✅ Tus cuentas cuadran perfecto. ¡Sigue así!";
+        }
+
+        // Update Budget View
+        const viewPlanned = document.getElementById('view-budget-planned');
+        const viewRemaining = document.getElementById('view-budget-remaining');
+        const viewDates = document.getElementById('view-budget-dates');
+        const viewTitle = document.getElementById('view-budget-period-title');
+
+        if (viewPlanned) viewPlanned.textContent = `${AppState.settings.baseCurrency === 'CRC' ? '₡' : '$'}${Math.floor(summary.total).toLocaleString()}`;
+        if (viewRemaining) {
+            const rem = summary.total - summary.spent;
+            viewRemaining.textContent = `${rem >= 0 ? '' : '-'}${AppState.settings.baseCurrency === 'CRC' ? '₡' : '$'}${Math.floor(Math.abs(rem)).toLocaleString()}`;
+            viewRemaining.className = rem >= 0 ? 'text-income' : 'text-expense';
+        }
+        if (viewDates) {
+            viewDates.textContent = `${summary.start.toLocaleDateString()} - ${summary.end.toLocaleDateString()}`;
+        }
+        if (viewTitle) {
+            const labels = { weekly: 'Cálculos de la Semana', biweekly: 'Cálculos de la Quincena', monthly: 'Cálculos del Mes' };
+            viewTitle.textContent = labels[AppState.budget.period];
+        }
+
+        this.renderCategoryList(summary);
+        this.renderSetupModal();
+        
+        // Pet Reaction on App Load
+        if (window.appStartedFirstTime) {
+            Companion.updatePetMoodForBudget();
+            window.appStartedFirstTime = false;
+        }
+    },
+
+    renderCategoryList(summary) {
+        const listContainer = document.getElementById('budget-categories-list');
+        if (!listContainer) return;
+        listContainer.innerHTML = '';
+
+        // Sort: Alphabetical but "Otros" last
+        const sortedCategories = [...AppState.budget.categories].sort((a, b) => {
+            if (a.name === 'Otros') return 1;
+            if (b.name === 'Otros') return -1;
+            return a.name.localeCompare(b.name);
+        });
+
+        sortedCategories.forEach(cat => {
+            if (cat.limit === 0) return;
+
+            const spent = summary.categorySpending[cat.name] || 0;
+            const pct = (spent / cat.limit) * 100;
+            
+            const card = document.createElement('div');
+            card.className = 'category-budget-card glass-effect';
+            card.innerHTML = `
+                <div class="cat-budget-header">
+                    <span>${cat.name}</span>
+                    <span>${AppState.settings.baseCurrency === 'CRC' ? '₡' : '$'}${Math.floor(spent).toLocaleString()} / ${Math.floor(cat.limit).toLocaleString()}</span>
+                </div>
+                <div class="progress-bar-bg" style="height: 6px;">
+                    <div class="progress-bar-fill ${pct > 90 ? 'danger' : (pct > 70 ? 'warning' : '')}" style="width: ${Math.min(100, pct)}%; background: ${cat.color}"></div>
+                </div>
+                <div class="cat-budget-meta">
+                    <span>${Math.floor(pct)}% consumido</span>
+                    <span>${pct > 100 ? 'Excedido' : 'En meta'}</span>
+                </div>
+            `;
+            listContainer.appendChild(card);
+        });
+
+        if (listContainer.innerHTML === '') {
+            listContainer.innerHTML = `
+                <div class="text-center mt-20 p-20 glass-effect" style="border-radius: 20px;">
+                    <p class="text-secondary">No hay límites configurados aún.</p>
+                    <button class="btn-action btn-primary mt-15" onclick="document.getElementById('budget-setup-modal').classList.add('active')">Configurar Categorías</button>
+                </div>
+            `;
+        }
+    },
+
+    renderSetupModal() {
+        const container = document.getElementById('budget-setup-categories');
+        if (!container) return;
+        container.innerHTML = '';
+
+        document.getElementById('budget-period-select').value = AppState.budget.period;
+        document.getElementById('budget-income-input').value = AppState.budget.income;
+
+        // Sort: Alphabetical but "Otros" last
+        const sortedCategories = [...AppState.budget.categories].sort((a, b) => {
+            if (a.name === 'Otros') return 1;
+            if (b.name === 'Otros') return -1;
+            return a.name.localeCompare(b.name);
+        });
+
+        sortedCategories.forEach(cat => {
+            const row = document.createElement('div');
+            row.className = 'input-group-row';
+            row.style.alignItems = 'center';
+            row.innerHTML = `
+                <label style="display:flex; align-items:center; gap:8px; flex:1;">
+                    <div style="width:12px; height:12px; border-radius:50%; background:${cat.color}"></div>
+                    <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${cat.name}</span>
+                </label>
+                <div style="display:flex; gap: 5px; align-items: center;">
+                    <input type="number" class="budget-cat-input" data-category="${cat.name}" value="${cat.limit}" placeholder="0" inputmode="decimal" style="width: 80px;">
+                    ${cat.name !== 'Otros' ? `<button class="icon-btn" onclick="BudgetManager.deleteCategory('${cat.name.replace(/'/g, "\\'")}')" style="width: 35px; height: 35px; font-size: 14px; color: var(--color-expense); background: rgba(255,0,0,0.1); box-shadow: none;" title="Eliminar Categoría">🗑️</button>` : `<div style="width:35px;"></div>`}
+                </div>
+            `;
+            container.appendChild(row);
+        });
+    },
+
+    deleteCategory(name) {
+        if (name === 'Otros') return;
+
+        if (confirm(`¿Estás seguro que deseas archivar la categoría "${name}"?\n\nLos registros históricos que tengan esta categoría NO se borrarán de tu historial de movimientos, pero la categoría ya no figurará en tus plantillas y formularios futuros.`)) {
+            AppState.budget.categories = AppState.budget.categories.filter(c => c.name !== name);
+            
+            // Mark as permanently deleted to prevent auto-injection
+            if (!AppState.settings.deletedCategories) {
+                AppState.settings.deletedCategories = [];
+            }
+            if (!AppState.settings.deletedCategories.includes(name)) {
+                AppState.settings.deletedCategories.push(name);
+            }
+            
+            saveState(); // Ensure it persists completely
+            BudgetManager.renderSetupModal(); 
+            Companion.say(`¡Hecho! Hemos retirado "${name}" de tu lista. 🧹`, 3500);
+        }
+    },
+
+    addCustomCategory() {
+        const nameInput = document.getElementById('new-custom-category-name');
+        const colorInput = document.getElementById('new-custom-category-color');
+        if (!nameInput || !colorInput) return;
+
+        const name = nameInput.value.trim();
+        const color = colorInput.value;
+
+        if (name) {
+            // Check if it already exists
+            const exists = AppState.budget.categories.find(c => c.name.toLowerCase() === name.toLowerCase());
+            if (exists) {
+                alert('Esta categoría ya existe en tu configuración.');
+                return;
+            }
+
+            // Create property
+            AppState.budget.categories.push({ name: name, limit: 0, color: color });
+            saveState(); // Ensure it persists
+            
+            // Visual Update Let the user see it without closing the modal
+            BudgetManager.renderSetupModal(); 
+            nameInput.value = '';
+            Companion.say(`¡Agregamos "${name}" a tus opciones de gasto! ✨`, 3500);
+        } else {
+            alert('Por favor, ingresa un nombre para la categoría personal.');
+        }
+    },
+
+    saveFromModal() {
+        const period = document.getElementById('budget-period-select').value;
+        const income = parseFloat(document.getElementById('budget-income-input').value) || 0;
+        const inputs = document.querySelectorAll('.budget-cat-input');
+        
+        AppState.budget.period = period;
+        AppState.budget.income = income;
+        
+        inputs.forEach(input => {
+            const catName = input.getAttribute('data-category');
+            const cat = AppState.budget.categories.find(c => c.name === catName);
+            if (cat) cat.limit = parseFloat(input.value) || 0;
+        });
+
+        saveState();
+        document.getElementById('budget-setup-modal').classList.remove('active');
+        Companion.say("✍️ Diarios actualizados. ¡Tus cálculos están al día!", 3000);
+    }
+};
+
+function populateCategorySelect(selectId, type, currentValue = '') {
+    const select = document.getElementById(selectId);
+    if (!select) return;
+    select.innerHTML = '';
+    
+    if (type === 'income') {
+        const opt = document.createElement('option');
+        opt.value = 'Ingreso General';
+        opt.textContent = 'Ingreso General';
+        select.appendChild(opt);
+    } else {
+        // Sort: Alphabetical but "Otros" last
+        const sortedCategories = [...AppState.budget.categories].sort((a, b) => {
+            if (a.name === 'Otros') return 1;
+            if (b.name === 'Otros') return -1;
+            return a.name.localeCompare(b.name);
+        });
+
+        sortedCategories.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat.name;
+            opt.textContent = cat.name;
+            if (cat.name === currentValue) opt.selected = true;
+            select.appendChild(opt);
+        });
+    }
+}
+
+window.appStartedFirstTime = true;
+
 
 document.addEventListener('DOMContentLoaded', () => {
     // Global PIN logic
@@ -1498,12 +1915,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function openModal(type) {
         txTypeInput.value = type;
+        populateCategorySelect('tx-category', type);
+        
+        const catGroup = document.getElementById('tx-category-group');
+        const descGroup = document.getElementById('tx-description-group');
+        
         if (type === 'income') {
             modalTitle.textContent = 'Nuevo Ingreso';
             btnSubmitTx.className = 'btn-action btn-income';
+            if (catGroup) catGroup.style.display = 'none';
+            if (descGroup) descGroup.style.display = 'block';
+            document.getElementById('tx-description').value = '';
         } else {
             modalTitle.textContent = 'Nuevo Gasto';
             btnSubmitTx.className = 'btn-action btn-expense';
+            if (catGroup) catGroup.style.display = 'block';
+            if (descGroup) descGroup.style.display = 'none';
         }
         modal.classList.add('active');
         document.getElementById('tx-amount').focus();
@@ -1516,14 +1943,21 @@ document.addEventListener('DOMContentLoaded', () => {
     if(btnSubmitTx) btnSubmitTx.addEventListener('click', () => {
         const amount = document.getElementById('tx-amount').value;
         const currency = document.getElementById('tx-currency').value;
-        const category = document.getElementById('tx-category').value || 'General';
         const type = document.getElementById('tx-type').value;
+        
+        let category = 'Otros';
+        if (type === 'income') {
+            category = document.getElementById('tx-description').value.trim() || 'Ingreso General';
+        } else {
+            category = document.getElementById('tx-category').value;
+        }
 
         if (amount && !isNaN(amount) && Number(amount) > 0) {
             addTransaction(type, amount, currency, category);
             modal.classList.remove('active');
             document.getElementById('tx-amount').value = '';
             document.getElementById('tx-category').value = '';
+            document.getElementById('tx-description').value = '';
         } else {
             alert('Por favor, ingresa un monto válido.');
         }
@@ -1543,17 +1977,23 @@ document.addEventListener('DOMContentLoaded', () => {
         const txId = document.getElementById('edit-tx-id').value;
         const amount = document.getElementById('edit-tx-amount').value;
         const currency = document.getElementById('edit-tx-currency').value;
-        const category = document.getElementById('edit-tx-category').value || 'General';
+        
+        const tx = AppState.transactions.find(t => t.id === txId);
+        if (!tx) return;
+
+        let category = tx.category;
+        if (tx.type === 'income') {
+            category = document.getElementById('edit-tx-description').value.trim() || 'Ingreso General';
+        } else {
+            category = document.getElementById('edit-tx-category').value || 'Otros';
+        }
 
         if (amount && !isNaN(amount) && Number(amount) > 0) {
-            const tx = AppState.transactions.find(t => t.id === txId);
-            if (tx) {
-                syncGoalFromTxEdit(tx, parseFloat(amount), false);
-                tx.amount = parseFloat(amount);
-                tx.currency = currency;
-                tx.category = category;
-                saveState();
-            }
+            syncGoalFromTxEdit(tx, parseFloat(amount), false);
+            tx.amount = parseFloat(amount);
+            tx.currency = currency;
+            tx.category = category;
+            saveState();
             editTxModal.classList.remove('active');
         } else {
             alert('Por favor, ingresa un monto válido.');
@@ -1608,9 +2048,10 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('goal-amount').value = '';
             document.getElementById('goal-date').value = '';
             
+            Companion.say("🎯 ¡Excelente! Hemos iniciado un nuevo plan de ahorro. ¡Tú puedes!", 4000);
             Companion.cinematicCelebration();
         } else {
-            alert('Por favor, completa todos los campos de la meta correctamente.');
+            alert('Por favor, completa todos los campos del ahorro correctamente.');
         }
     });
 
@@ -1657,10 +2098,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (goal) {
             goal.isReleased = true;
             // Income for the target account
-            addTransaction('income', goal.savedAmount, goal.currency, `Liberación de Meta: ${goal.title}`, true, accountId);
+            addTransaction('income', goal.savedAmount, goal.currency, `Liberación de Ahorro: ${goal.title}`, true, accountId);
             saveState();
             document.getElementById('release-goal-modal').classList.remove('active');
-            Companion.say('¡Fondos liberados con éxito a la cuenta seleccionada! 🎉', 5000);
+            Companion.say('¡Fondos de ahorro liberados con éxito a la cuenta seleccionada! 🎉', 5000);
             Companion.cinematicCelebration();
         }
     });
