@@ -1,4 +1,4 @@
-const CACHE_NAME = 'flexi-cuentas-v5';
+const CACHE_NAME = 'flexi-cuentas-v6';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
